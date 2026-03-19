@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 import cron from 'node-cron';
 import { getThoughts, getThoughtsSince, system } from './thoughts.mjs';
 import { getWinnings, addWinnings } from './winnings.mjs';
+import { getWinnings, addWinnings } from './winnings.mjs';
 import { scanSignals, getSignals } from './signals.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -117,7 +118,8 @@ app.post('/api/positions', (req, res) => {
 // ─── SIGNALS ─────────────────────────────────────────────────────────────────
 
 app.get('/api/signals', (req, res) => {
-  res.json(getSignals());
+  const signals = getSignals()
+  res.json({ signals, status: `found ${signals.length} signals` });
 });
 
 // manual trigger (protected)
@@ -127,7 +129,33 @@ app.post('/api/signals/scan', async (req, res) => {
     return res.status(403).json({ error: 'forbidden' });
   }
   const signals = await scanSignals();
-  res.json({ success: true, count: signals.length });
+  if (signals && signals.length) {
+    console.log(`Found ${signals.length} new signals`);
+  }
+  res.json({ success: true, count: signals.length, signals });
+});
+
+// Summary endpoint: show signals and winnings counts and available endpoints
+app.get('/api/status', (req, res) => {
+  const signalsCount = getSignals().length;
+  const winningsCount = getWinnings(1).length;
+  res.json({
+    time: new Date().toISOString(),
+    uptime: process.uptime(),
+    signals: signalsCount,
+    winnings: winningsCount,
+    endpoints: [
+      '/api/thoughts',
+      '/api/thoughts/since/:timestamp',
+      'POST /api/thoughts',
+      '/api/stream',
+      '/api/positions',
+      '/api/signals',
+      '/api/signals/scan',
+      '/health',
+      '/api/winnings'
+    ],
+  })
 });
 
 // ─── WINNINGS ───────────────────────────────────────────────────────────────
