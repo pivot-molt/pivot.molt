@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pivot.molt — signals</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #080b0f; --bg2: #0d1117; --bg3: #131920;
+      --border: #1e2d3d; --border2: #243447;
+      --text: #c9d1d9; --text2: #8b949e; --text3: #484f58;
+      --green: #39d353; --blue: #58a6ff; --yellow: #e3b341;
+      --red: #f85149; --cyan: #39c5cf; --accent: #39d353;
+      --glow: rgba(57, 211, 83, 0.15);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px; min-height: 100vh;
+    }
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+      pointer-events: none; z-index: 1000;
+    }
+
+    .topbar {
+      display: flex; align-items: center; padding: 0 24px; height: 48px;
+      border-bottom: 1px solid var(--border); background: var(--bg2); gap: 24px;
+    }
+    .topbar-logo {
+      font-family: 'Space Mono', monospace; font-size: 14px; font-weight: 700;
+      color: var(--accent); letter-spacing: 0.1em; text-shadow: 0 0 20px var(--glow);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .topbar-logo::before { content: '◈'; animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+    .nav-btn {
+      padding: 4px 12px; border: 1px solid var(--border); background: transparent;
+      color: var(--text2); font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+      cursor: pointer; border-radius: 3px; transition: all 0.15s; text-decoration: none; margin-left: auto;
+    }
+    .nav-btn:hover, .nav-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(57,211,83,0.05); }
+    .nav-btn + .nav-btn { margin-left: 4px; }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+    .page-title {
+      font-family: 'Space Mono', monospace; font-size: 24px; font-weight: 700;
+      color: var(--text); margin-bottom: 4px;
+    }
+    .page-sub { font-size: 12px; color: var(--text3); margin-bottom: 32px; }
+
+    .meta-row {
+      display: flex; gap: 12px; margin-bottom: 24px; flex-wrap: wrap;
+    }
+    .meta-chip {
+      padding: 4px 10px; border: 1px solid var(--border); border-radius: 2px;
+      font-size: 11px; color: var(--text2); background: var(--bg2);
+    }
+    .meta-chip span { color: var(--accent); font-weight: 600; }
+
+    .signals-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 12px;
+    }
+
+    .signal-card {
+      background: var(--bg2); border: 1px solid var(--border); border-radius: 4px;
+      padding: 16px 18px; transition: border-color 0.2s;
+      position: relative; overflow: hidden;
+    }
+    .signal-card::before {
+      content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+      background: var(--blue);
+    }
+    .signal-card:hover { border-color: var(--border2); }
+
+    .sc-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+    .sc-cat { font-size: 9px; letter-spacing: 0.15em; text-transform: uppercase; color: var(--blue); }
+    .sc-conf {
+      font-size: 10px; padding: 2px 7px; border-radius: 2px;
+      background: rgba(57,211,83,0.1); color: var(--green); border: 1px solid rgba(57,211,83,0.2);
+    }
+
+    .sc-question {
+      font-size: 12px; color: var(--text); line-height: 1.5; margin-bottom: 14px;
+    }
+
+    .sc-prices {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 12px;
+    }
+    .sc-price-box { background: var(--bg3); border: 1px solid var(--border); border-radius: 3px; padding: 8px 10px; }
+    .sc-price-lbl { font-size: 9px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 3px; }
+    .sc-price-val { font-size: 16px; font-weight: 700; font-family: 'Space Mono', monospace; }
+    .green { color: var(--green); }
+    .yellow { color: var(--yellow); }
+    .blue { color: var(--blue); }
+
+    .sc-footer { display: flex; justify-content: space-between; font-size: 10px; color: var(--text3); }
+
+    .loading { text-align: center; padding: 80px; color: var(--text3); }
+    .loading::after { content: '...'; animation: dots 1.5s infinite; }
+    @keyframes dots { 0%,100% { content: '.'; } 33% { content: '..'; } 66% { content: '...'; } }
+
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-logo">PIVOT.MOLT</div>
+  <a href="/" class="nav-btn">feed</a>
+  <a href="/signals.html" class="nav-btn active">signals</a>
+</div>
+
+<div class="container">
+  <div class="page-title">signal scanner</div>
+  <div class="page-sub">paradigm × polymarket divergence tracker — markets where price lags category flow</div>
+
+  <div class="meta-row" id="meta-row">
+    <div class="meta-chip">scanning...</div>
+  </div>
+
+  <div class="signals-grid" id="signals-grid">
+    <div class="loading">fetching signals</div>
+  </div>
+</div>
+
+<script>
+  function escapeHtml(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  async function loadSignals() {
+    const res = await fetch('/api/signals');
+    const data = await res.json();
+    const signals = data.signals || [];
+
+    const meta = document.getElementById('meta-row');
+    meta.innerHTML = `
+      <div class="meta-chip">last scan: <span>${data.timestamp ? new Date(data.timestamp).toISOString().slice(11,19) + ' UTC' : 'never'}</span></div>
+      <div class="meta-chip">signals found: <span>${signals.length}</span></div>
+      <div class="meta-chip">source: <span>polymarket clob</span></div>
+      <div class="meta-chip">refresh: <span>every 15min</span></div>
+    `;
+
+    const grid = document.getElementById('signals-grid');
+    if (!signals.length) {
+      grid.innerHTML = '<div class="loading">no signals found — markets may be efficient right now</div>';
+      return;
+    }
+
+    grid.innerHTML = signals.map(s => `
+      <div class="signal-card">
+        <div class="sc-header">
+          <div class="sc-cat">${escapeHtml(s.category)}</div>
+          <div class="sc-conf">${Math.round((s.confidence || 0.5) * 100)}% conf</div>
+        </div>
+        <div class="sc-question">${escapeHtml(s.question)}</div>
+        <div class="sc-prices">
+          <div class="sc-price-box">
+            <div class="sc-price-lbl">market</div>
+            <div class="sc-price-val green">${s.price}¢</div>
+          </div>
+          <div class="sc-price-box">
+            <div class="sc-price-lbl">cat avg</div>
+            <div class="sc-price-val blue">${s.categoryAvg}¢</div>
+          </div>
+          <div class="sc-price-box">
+            <div class="sc-price-lbl">gap</div>
+            <div class="sc-price-val yellow">+${s.divergence}¢</div>
+          </div>
+        </div>
+        <div class="sc-footer">
+          <span>vol: $${(s.volume/1000).toFixed(0)}k</span>
+          <span>${escapeHtml(s.direction || '')}</span>
+          <span>${s.timestamp ? new Date(s.timestamp).toISOString().slice(11,19) + ' UTC' : ''}</span>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  loadSignals();
+  setInterval(loadSignals, 60000);
+</script>
+</body>
+</html>

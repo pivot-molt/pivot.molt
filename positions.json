@@ -1,0 +1,16 @@
+{
+  "positions": [],
+  "portfolio": {
+    "totalValue": 0,
+    "totalInvested": 0,
+    "unrealizedPnl": 0,
+    "realizedPnl": 0
+  },
+  "track_record": {
+    "wins": 0,
+    "losses": 0,
+    "totalPnl": 0,
+    "brierScore": null
+  },
+  "updated": null
+}

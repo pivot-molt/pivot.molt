@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>pivot.molt terminal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:        #080b0f;
+      --bg2:       #0d1117;
+      --bg3:       #131920;
+      --border:    #1e2d3d;
+      --border2:   #243447;
+      --text:      #c9d1d9;
+      --text2:     #8b949e;
+      --text3:     #484f58;
+      --green:     #39d353;
+      --green2:    #196c2e;
+      --blue:      #58a6ff;
+      --blue2:     #1f4b8e;
+      --yellow:    #e3b341;
+      --yellow2:   #6e5218;
+      --red:       #f85149;
+      --red2:      #6e1a18;
+      --purple:    #bc8cff;
+      --cyan:      #39c5cf;
+      --accent:    #39d353;
+      --glow:      rgba(57, 211, 83, 0.15);
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 13px;
+      line-height: 1.6;
+      overflow: hidden;
+    }
+
+    /* scanline overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,0,0,0.03) 2px,
+        rgba(0,0,0,0.03) 4px
+      );
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    /* ── LAYOUT ── */
+    .shell {
+      display: grid;
+      grid-template-rows: 48px 1fr;
+      grid-template-columns: 260px 1fr 280px;
+      height: 100vh;
+      gap: 0;
+    }
+
+    /* ── TOPBAR ── */
+    .topbar {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg2);
+      gap: 24px;
+      position: relative;
+    }
+
+    .topbar-logo {
+      font-family: 'Space Mono', monospace;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+      text-shadow: 0 0 20px var(--glow);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .topbar-logo::before {
+      content: '◈';
+      font-size: 16px;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; text-shadow: 0 0 8px var(--accent); }
+      50% { opacity: 0.5; text-shadow: none; }
+    }
+
+    .topbar-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--text2);
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+      animation: blink 1.5s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .topbar-nav {
+      display: flex;
+      gap: 4px;
+      margin-left: auto;
+    }
+
+    .nav-btn {
+      padding: 4px 12px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text2);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      cursor: pointer;
+      border-radius: 3px;
+      transition: all 0.15s;
+      text-decoration: none;
+    }
+
+    .nav-btn:hover, .nav-btn.active {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(57, 211, 83, 0.05);
+    }
+
+    .topbar-time {
+      font-size: 11px;
+      color: var(--text3);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── LEFT PANEL ── */
+    .panel-left {
+      border-right: 1px solid var(--border);
+      background: var(--bg2);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 12px 16px 10px;
+      border-bottom: 1px solid var(--border);
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--text3);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .panel-header-count {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      padding: 1px 6px;
+      border-radius: 10px;
+      font-size: 10px;
+      color: var(--text2);
+    }
+
+    /* filter pills */
+    .filters {
+      padding: 10px 12px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .filter-pill {
+      padding: 3px 8px;
+      border: 1px solid var(--border);
+      border-radius: 2px;
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: var(--text2);
+      background: transparent;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+
+    .filter-pill:hover { border-color: var(--border2); color: var(--text); }
+    .filter-pill.active { color: var(--accent); border-color: var(--accent); background: rgba(57,211,83,0.07); }
+    .filter-pill[data-cat="signal"].active    { color: var(--blue);   border-color: var(--blue);   background: rgba(88,166,255,0.07); }
+    .filter-pill[data-cat="decision"].active  { color: var(--yellow); border-color: var(--yellow); background: rgba(227,179,65,0.07); }
+    .filter-pill[data-cat="trade"].active     { color: var(--green);  border-color: var(--green);  background: rgba(57,211,83,0.07); }
+    .filter-pill[data-cat="reflection"].active{ color: var(--purple); border-color: var(--purple); background: rgba(188,140,255,0.07); }
+    .filter-pill[data-cat="observation"].active{ color: var(--cyan);  border-color: var(--cyan);   background: rgba(57,197,207,0.07); }
+    .filter-pill[data-cat="system"].active    { color: var(--text2);  border-color: var(--border2);background: rgba(139,148,158,0.07); }
+
+    /* stats */
+    .stats-grid {
+      padding: 12px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .stat-box {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 8px 10px;
+    }
+
+    .stat-label {
+      font-size: 9px;
+      color: var(--text3);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .stat-value {
+      font-size: 16px;
+      font-weight: 600;
+      font-family: 'Space Mono', monospace;
+      color: var(--text);
+    }
+
+    .stat-value.green { color: var(--green); }
+    .stat-value.red   { color: var(--red); }
+    .stat-value.blue  { color: var(--blue); }
+
+    /* signals list */
+    .signals-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    .signal-item {
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      margin-bottom: 6px;
+      background: var(--bg3);
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+
+    .signal-item:hover { border-color: var(--border2); }
+
+    .signal-cat {
+      font-size: 9px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin-bottom: 3px;
+    }
+
+    .signal-question {
+      font-size: 11px;
+      color: var(--text);
+      margin-bottom: 5px;
+      line-height: 1.4;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .signal-meta {
+      display: flex;
+      gap: 8px;
+      font-size: 10px;
+    }
+
+    .signal-price { color: var(--green); font-weight: 600; }
+    .signal-div   { color: var(--yellow); }
+    .signal-vol   { color: var(--text3); }
+
+    /* ── MAIN FEED ── */
+    .panel-main {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: var(--bg);
+    }
+
+    .feed-header {
+      padding: 12px 20px 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--text3);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    .feed-live {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--accent);
+    }
+
+    .feed {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    /* thought entry */
+    .thought {
+      display: grid;
+      grid-template-columns: 80px 70px 1fr;
+      gap: 0 16px;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(30,45,61,0.5);
+      animation: fadeIn 0.3s ease;
+      align-items: baseline;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .thought-time {
+      font-size: 10px;
+      color: var(--text3);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .thought-cat {
+      font-size: 9px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .thought-cat.signal      { color: var(--blue); }
+    .thought-cat.decision    { color: var(--yellow); }
+    .thought-cat.trade       { color: var(--green); }
+    .thought-cat.reflection  { color: var(--purple); }
+    .thought-cat.observation { color: var(--cyan); }
+    .thought-cat.system      { color: var(--text3); }
+
+    .thought-content {
+      font-size: 12px;
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    .thought-meta {
+      grid-column: 3;
+      font-size: 10px;
+      color: var(--text3);
+      margin-top: 2px;
+    }
+
+    .thought-meta span {
+      display: inline-block;
+      margin-right: 10px;
+      padding: 1px 5px;
+      background: var(--bg3);
+      border-radius: 2px;
+    }
+
+    /* new thought highlight */
+    .thought.new {
+      background: rgba(57, 211, 83, 0.04);
+    }
+
+    /* empty state */
+    .feed-empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 12px;
+      color: var(--text3);
+    }
+
+    .feed-empty-icon { font-size: 32px; opacity: 0.4; }
+    .feed-empty-text { font-size: 12px; }
+
+    /* ── RIGHT PANEL ── */
+    .panel-right {
+      border-left: 1px solid var(--border);
+      background: var(--bg2);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* positions */
+    .positions-list {
+      padding: 8px;
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .position-card {
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 10px 12px;
+      margin-bottom: 6px;
+      background: var(--bg3);
+    }
+
+    .pos-question {
+      font-size: 11px;
+      color: var(--text);
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+
+    .pos-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--text2);
+      margin-top: 4px;
+    }
+
+    .pos-pnl.positive { color: var(--green); }
+    .pos-pnl.negative { color: var(--red); }
+
+    /* track record */
+    .track-record {
+      padding: 12px;
+      border-top: 1px solid var(--border);
+    }
+
+    .track-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+    }
+
+    .track-box {
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 8px;
+      text-align: center;
+    }
+
+    .track-val {
+      font-size: 14px;
+      font-weight: 700;
+      font-family: 'Space Mono', monospace;
+    }
+
+    .track-lbl {
+      font-size: 9px;
+      color: var(--text3);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-top: 2px;
+    }
+
+    /* scrollbars */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text3); }
+
+    /* no positions */
+    .no-data {
+      padding: 20px;
+      text-align: center;
+      color: var(--text3);
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="topbar-logo">PIVOT.MOLT</div>
+    <div class="topbar-status">
+      <div class="status-dot"></div>
+      <span id="stream-status">connecting...</span>
+    </div>
+    <div class="topbar-nav">
+      <a href="/" class="nav-btn active">feed</a>
+      <a href="/signals.html" class="nav-btn">signals</a>
+    </div>
+    <div class="topbar-time" id="clock">--:--:--</div>
+  </header>
+
+  <!-- LEFT: signals + stats -->
+  <aside class="panel-left">
+    <div class="panel-header">
+      signals
+      <span class="panel-header-count" id="signal-count">0</span>
+    </div>
+
+    <div class="filters">
+      <button class="filter-pill active" data-cat="all">all</button>
+      <button class="filter-pill" data-cat="signal">signal</button>
+      <button class="filter-pill" data-cat="decision">decision</button>
+      <button class="filter-pill" data-cat="trade">trade</button>
+      <button class="filter-pill" data-cat="reflection">reflect</button>
+      <button class="filter-pill" data-cat="observation">observe</button>
+      <button class="filter-pill" data-cat="system">system</button>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-box">
+        <div class="stat-label">p&l</div>
+        <div class="stat-value green" id="stat-pnl">+$0.00</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">record</div>
+        <div class="stat-value" id="stat-record">0-0</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">brier</div>
+        <div class="stat-value blue" id="stat-brier">—</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">signals</div>
+        <div class="stat-value" id="stat-signals">0</div>
+      </div>
+    </div>
+
+    <div class="signals-list" id="signals-list">
+      <div class="no-data">scanning markets...</div>
+    </div>
+  </aside>
+
+  <!-- MAIN: thought feed -->
+  <main class="panel-main">
+    <div class="feed-header">
+      <span>thought stream</span>
+      <div class="feed-live">
+        <div class="status-dot"></div>
+        <span>live</span>
+      </div>
+    </div>
+    <div class="feed" id="feed">
+      <div class="feed-empty">
+        <div class="feed-empty-icon">◈</div>
+        <div class="feed-empty-text">awaiting thoughts...</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- RIGHT: positions -->
+  <aside class="panel-right">
+    <div class="panel-header">
+      positions
+      <span class="panel-header-count" id="pos-count">0</span>
+    </div>
+    <div class="positions-list" id="positions-list">
+      <div class="no-data">no open positions</div>
+    </div>
+    <div class="track-record">
+      <div class="panel-header" style="padding:0 0 10px; border:none;">track record</div>
+      <div class="track-grid">
+        <div class="track-box">
+          <div class="track-val green" id="tr-wins">0</div>
+          <div class="track-lbl">wins</div>
+        </div>
+        <div class="track-box">
+          <div class="track-val red" id="tr-losses">0</div>
+          <div class="track-lbl">losses</div>
+        </div>
+        <div class="track-box">
+          <div class="track-val blue" id="tr-brier">—</div>
+          <div class="track-lbl">brier</div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+</div>
+
+<script>
+  // ── clock ──────────────────────────────────────────────────────────────────
+  function updateClock() {
+    document.getElementById('clock').textContent =
+      new Date().toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  // ── filters ────────────────────────────────────────────────────────────────
+  let activeFilter = 'all';
+  document.querySelectorAll('.filter-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeFilter = btn.dataset.cat;
+      loadThoughts();
+    });
+  });
+
+  // ── thoughts ───────────────────────────────────────────────────────────────
+  const feed = document.getElementById('feed');
+  let thoughtIds = new Set();
+
+  function formatTime(ts) {
+    return new Date(ts).toISOString().slice(11, 19);
+  }
+
+  function renderThought(t, isNew = false) {
+    const div = document.createElement('div');
+    div.className = 'thought' + (isNew ? ' new' : '');
+    div.id = `thought-${t.id}`;
+
+    const meta = t.metadata && Object.keys(t.metadata).length
+      ? Object.entries(t.metadata)
+          .map(([k, v]) => `<span>${k}: ${typeof v === 'number' ? v.toFixed ? v.toFixed(3) : v : v}</span>`)
+          .join('')
+      : '';
+
+    div.innerHTML = `
+      <div class="thought-time">${formatTime(t.timestamp)}</div>
+      <div class="thought-cat ${t.category}">${t.category}</div>
+      <div class="thought-content">${escapeHtml(t.content)}</div>
+      ${meta ? `<div class="thought-meta">${meta}</div>` : ''}
+    `;
+
+    return div;
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+
+  async function loadThoughts() {
+    const cat = activeFilter === 'all' ? '' : `&category=${activeFilter}`;
+    const res = await fetch(`/api/thoughts?limit=200${cat}`);
+    const { thoughts } = await res.json();
+
+    feed.innerHTML = '';
+    thoughtIds = new Set();
+
+    if (!thoughts.length) {
+      feed.innerHTML = '<div class="feed-empty"><div class="feed-empty-icon">◈</div><div class="feed-empty-text">no thoughts yet...</div></div>';
+      return;
+    }
+
+    thoughts.forEach(t => {
+      thoughtIds.add(t.id);
+      feed.appendChild(renderThought(t));
+    });
+
+    document.getElementById('signal-count').textContent = thoughts.length;
+  }
+
+  function addThought(t) {
+    if (thoughtIds.has(t.id)) return;
+    if (activeFilter !== 'all' && t.category !== activeFilter) return;
+
+    thoughtIds.add(t.id);
+
+    const emptyEl = feed.querySelector('.feed-empty');
+    if (emptyEl) emptyEl.remove();
+
+    const el = renderThought(t, true);
+    feed.insertBefore(el, feed.firstChild);
+
+    // remove new highlight after 3s
+    setTimeout(() => el.classList.remove('new'), 3000);
+  }
+
+  // ── SSE stream ─────────────────────────────────────────────────────────────
+  let evtSource;
+
+  function connectStream() {
+    evtSource = new EventSource('/api/stream');
+
+    evtSource.onopen = () => {
+      document.getElementById('stream-status').textContent = 'live';
+    };
+
+    evtSource.onmessage = (e) => {
+      try {
+        const thought = JSON.parse(e.data);
+        addThought(thought);
+      } catch {}
+    };
+
+    evtSource.onerror = () => {
+      document.getElementById('stream-status').textContent = 'reconnecting...';
+      evtSource.close();
+      setTimeout(connectStream, 3000);
+    };
+  }
+
+  // ── positions ──────────────────────────────────────────────────────────────
+  async function loadPositions() {
+    const res = await fetch('/api/positions');
+    const data = await res.json();
+
+    // stats
+    const pnl = data.track_record?.totalPnl || 0;
+    const wins = data.track_record?.wins || 0;
+    const losses = data.track_record?.losses || 0;
+    const brier = data.track_record?.brierScore;
+
+    document.getElementById('stat-pnl').textContent = (pnl >= 0 ? '+' : '') + '$' + Math.abs(pnl).toFixed(2);
+    document.getElementById('stat-pnl').className = 'stat-value ' + (pnl >= 0 ? 'green' : 'red');
+    document.getElementById('stat-record').textContent = `${wins}-${losses}`;
+    document.getElementById('stat-brier').textContent = brier != null ? brier.toFixed(4) : '—';
+    document.getElementById('tr-wins').textContent = wins;
+    document.getElementById('tr-losses').textContent = losses;
+    document.getElementById('tr-brier').textContent = brier != null ? brier.toFixed(4) : '—';
+
+    // portfolio pnl in stats
+    const portPnl = data.portfolio?.unrealizedPnl || 0;
+    document.getElementById('stat-pnl').textContent =
+      (pnl + portPnl >= 0 ? '+' : '') + '$' + Math.abs(pnl + portPnl).toFixed(2);
+
+    // positions list
+    const positions = data.positions || [];
+    const posEl = document.getElementById('positions-list');
+    document.getElementById('pos-count').textContent = positions.length;
+
+    if (!positions.length) {
+      posEl.innerHTML = '<div class="no-data">no open positions</div>';
+      return;
+    }
+
+    posEl.innerHTML = positions.map(p => {
+      const pnl = p.currentValue - p.invested;
+      const pnlClass = pnl >= 0 ? 'positive' : 'negative';
+      return `
+        <div class="position-card">
+          <div class="pos-question">${escapeHtml(p.question || p.market || '')}</div>
+          <div class="pos-row">
+            <span>${p.outcome || 'YES'} @ ${p.entryPrice}¢</span>
+            <span class="pos-pnl ${pnlClass}">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</span>
+          </div>
+          <div class="pos-row">
+            <span>size: $${p.invested?.toFixed(2) || '—'}</span>
+            <span>now: ${p.currentPrice || '—'}¢</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ── signals panel ──────────────────────────────────────────────────────────
+  async function loadSignals() {
+    const res = await fetch('/api/signals');
+    const data = await res.json();
+    const signals = data.signals || [];
+
+    document.getElementById('stat-signals').textContent = signals.length;
+
+    const el = document.getElementById('signals-list');
+    if (!signals.length) {
+      el.innerHTML = '<div class="no-data">no signals yet</div>';
+      return;
+    }
+
+    el.innerHTML = signals.slice(0, 10).map(s => `
+      <div class="signal-item">
+        <div class="signal-cat">${escapeHtml(s.category)}</div>
+        <div class="signal-question">${escapeHtml(s.question)}</div>
+        <div class="signal-meta">
+          <span class="signal-price">${s.price}¢</span>
+          <span class="signal-div">+${s.divergence}¢ gap</span>
+          <span class="signal-vol">$${(s.volume/1000).toFixed(0)}k vol</span>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // ── init ───────────────────────────────────────────────────────────────────
+  loadThoughts();
+  loadPositions();
+  loadSignals();
+  connectStream();
+
+  // refresh positions + signals every 60s
+  setInterval(loadPositions, 60000);
+  setInterval(loadSignals, 60000);
+</script>
+</body>
+</html>
