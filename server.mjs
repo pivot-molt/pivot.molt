@@ -11,7 +11,6 @@ import { fileURLToPath } from 'url';
 import cron from 'node-cron';
 import { getThoughts, getThoughtsSince, system } from './thoughts.mjs';
 import { getWinnings, addWinnings } from './winnings.mjs';
-import { getWinnings, addWinnings } from './winnings.mjs';
 import { scanSignals, getSignals } from './signals.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
