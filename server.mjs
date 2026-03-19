@@ -37,7 +37,21 @@ app.post('/api/thoughts', (req, res) => {
   if (secret !== (process.env.ORACLE_SECRET || 'oracle2026')) {
     return res.status(403).json({ error: 'forbidden' });
   }
-  const { think, THOUGHT } = await import('./thoughts.mjs');
+let think, THOUGHT;
+(async () => {
+  try {
+    const mod = await import('./thoughts.mjs');
+    think = mod.think;
+    THOUGHT = mod.THOUGHT;
+    // If there is a bootstrap function, invoke it to continue startup
+    if (typeof bootstrapServer === 'function') {
+      bootstrapServer();
+    }
+  } catch (err) {
+    console.error('Startup import failed', err);
+    process.exit(1);
+  }
+})();
   const cat = THOUGHT[category?.toUpperCase()];
   if (!cat) return res.status(400).json({ error: 'invalid category' });
   const thought = think(cat, content, metadata || {});
