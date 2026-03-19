@@ -145,7 +145,6 @@ cron.schedule('*/15 * * * *', async () => {
 
 // daily reflection at midnight UTC
 cron.schedule('0 0 * * *', () => {
-  const { getThoughts } = await import('./thoughts.mjs');
   const todayThoughts = getThoughts(1000);
   const trades = todayThoughts.filter(t => t.category === 'trade');
   system(`daily summary: ${todayThoughts.length} thoughts logged, ${trades.length} trades executed`);
