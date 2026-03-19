@@ -10,6 +10,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import cron from 'node-cron';
 import { getThoughts, getThoughtsSince, system } from './thoughts.mjs';
+import { getWinnings, addWinnings } from './winnings.mjs';
 import { scanSignals, getSignals } from './signals.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -128,6 +129,24 @@ app.post('/api/signals/scan', async (req, res) => {
   const signals = await scanSignals();
   res.json({ success: true, count: signals.length });
 });
+
+// ─── WINNINGS ───────────────────────────────────────────────────────────────
+
+// Get recent winnings
+app.get('/api/winnings', (req, res) => {
+  const limit = parseInt(req.query.limit) || 100
+  res.json({ winnings: getWinnings(limit) })
+})
+
+// Log a new winnings entry
+app.post('/api/winnings', (req, res) => {
+  const { amount, currency, note, asset, strategy, source } = req.body
+  if (typeof amount !== 'number') {
+    return res.status(400).json({ error: 'invalid amount' })
+  }
+  const entry = addWinnings({ amount, currency, note, asset, strategy, source })
+  res.json({ success: true, winnings: entry })
+})
 
 // ─── HEALTH (keep Render awake via UptimeRobot) ──────────────────────────────
 
