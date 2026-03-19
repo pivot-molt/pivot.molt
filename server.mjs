@@ -11,6 +11,7 @@ import { fileURLToPath } from 'url';
 import cron from 'node-cron';
 import { getThoughts, getThoughtsSince, system } from './thoughts.mjs';
 import { getWinnings, addWinnings } from './winnings.mjs';
+import { startBot, getBotStatus } from './bot.mjs';
 import { scanSignals, getSignals } from './signals.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -157,6 +158,11 @@ app.get('/api/status', (req, res) => {
   })
 });
 
+// Bot status endpoint
+app.get('/api/bot/status', (req, res) => {
+  res.json(getBotStatus())
+});
+
 // ─── WINNINGS ───────────────────────────────────────────────────────────────
 
 // Get recent winnings
@@ -199,6 +205,8 @@ cron.schedule('0 0 * * *', () => {
 // ─── START ───────────────────────────────────────────────────────────────────
 
 app.listen(PORT, async () => {
+  // Initialize the bot (simulation) in production-friendly way
+  try { startBot(); } catch (e) { console.error('Bot startup failed', e); }
   console.log(`
 ╔══════════════════════════════════════════╗
 ║                                          ║
