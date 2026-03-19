@@ -9,10 +9,10 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cron from 'node-cron';
-import { getThoughts, getThoughtsSince, system } from './thoughts.mjs';
+import { getThoughts, getThoughtsSince, system, think, THOUGHT } from './thoughts.mjs';
 import { getWinnings, addWinnings } from './winnings.mjs';
 import { startBot, getBotStatus } from './bot.mjs';
-import { scanSignals, getSignals } from './signals.mjs';
+import { scanSignals, getSignals, getSignalsCount, resetSignalsState, getLastScanTimestamp } from './signals.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -39,21 +39,6 @@ app.post('/api/thoughts', (req, res) => {
   if (secret !== (process.env.ORACLE_SECRET || 'oracle2026')) {
     return res.status(403).json({ error: 'forbidden' });
   }
-let think, THOUGHT;
-(async () => {
-  try {
-    const mod = await import('./thoughts.mjs');
-    think = mod.think;
-    THOUGHT = mod.THOUGHT;
-    // If there is a bootstrap function, invoke it to continue startup
-    if (typeof bootstrapServer === 'function') {
-      bootstrapServer();
-    }
-  } catch (err) {
-    console.error('Startup import failed', err);
-    process.exit(1);
-  }
-})();
   const cat = THOUGHT[category?.toUpperCase()];
   if (!cat) return res.status(400).json({ error: 'invalid category' });
   const thought = think(cat, content, metadata || {});
@@ -118,8 +103,14 @@ app.post('/api/positions', (req, res) => {
 // ─── SIGNALS ─────────────────────────────────────────────────────────────────
 
 app.get('/api/signals', (req, res) => {
-  const signals = getSignals()
-  res.json({ signals, status: `found ${signals.length} signals` });
+  const payload = getSignals();
+  const list = Array.isArray(payload?.signals) ? payload.signals : [];
+  res.json({
+    timestamp: payload?.timestamp || null,
+    count: payload?.count ?? list.length,
+    signals: list,
+    status: `found ${list.length} signals`
+  });
 });
 
 // manual trigger (protected)
@@ -132,12 +123,14 @@ app.post('/api/signals/scan', async (req, res) => {
   if (signals && signals.length) {
     console.log(`Found ${signals.length} new signals`);
   }
-  res.json({ success: true, count: signals.length, signals });
+  const timestamp = getLastScanTimestamp();
+  const count = Array.isArray(signals) ? signals.length : 0;
+  res.json({ timestamp, count, signals, status: `found ${count} signals` });
 });
 
 // Summary endpoint: show signals and winnings counts and available endpoints
 app.get('/api/status', (req, res) => {
-  const signalsCount = getSignals().length;
+  const signalsCount = getSignalsCount();
   const winningsCount = getWinnings(1).length;
   res.json({
     time: new Date().toISOString(),
@@ -153,6 +146,7 @@ app.get('/api/status', (req, res) => {
       '/api/signals',
       '/api/signals/scan',
       '/health',
+      '/ping',
       '/api/winnings'
     ],
   })
@@ -187,12 +181,114 @@ app.get('/health', (req, res) => {
   res.json({ status: 'alive', timestamp: new Date().toISOString() });
 });
 
+// UptimeRobot ping (also clears any stuck internal scan flags)
+app.get('/ping', (req, res) => {
+  try { resetSignalsState(); } catch {}
+  res.json({ status: 'alive', uptime: process.uptime(), signals: getSignalsCount() });
+});
+
 // ─── CRON JOBS ───────────────────────────────────────────────────────────────
 
 // scan signals every 15 minutes
 cron.schedule('*/15 * * * *', async () => {
   system('cron: starting scheduled signal scan');
   await scanSignals();
+});
+
+// 30-minute auto-thoughts using Anthropic-style model
+cron.schedule('*/30 * * * *', async () => {
+  system('cron: auto-thoughts (Anthropic Claude Haiku)');
+  try {
+    const mod = await import('./thoughts.mjs');
+    if (mod && typeof mod.think === 'function' && mod.THOUGHT) {
+      const keys = Object.keys(mod.THOUGHT);
+      if (keys.length > 0) {
+        const k = keys[Math.floor(Math.random() * keys.length)];
+        const cat = mod.THOUGHT[k];
+        const thought = mod.think(cat, 'auto-thought', { source: 'Anthropic' });
+        system(`auto-thought: ${JSON.stringify(thought)}`);
+      }
+    }
+  } catch (e) {
+    console.error('auto-thought failed', e);
+  }
+});
+
+async function generateAutoThoughtFromSignals() {
+  const key = process.env.ANTHROPIC_API_KEY;
+  if (!key) {
+    system('auto-thought skipped: ANTHROPIC_API_KEY missing');
+    return null;
+  }
+
+  const payload = getSignals();
+  const signals = Array.isArray(payload?.signals) ? payload.signals : [];
+
+  const compact = {
+    timestamp: payload?.timestamp || null,
+    count: signals.length,
+    top: signals.slice(0, 10).map(s => ({
+      category: s.category,
+      question: s.question,
+      price: s.price,
+      categoryAvg: s.categoryAvg,
+      divergence: s.divergence,
+      volume: s.volume
+    }))
+  };
+
+  const body = {
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 120,
+    temperature: 0.2,
+    system:
+      'You are an automated market-monitoring process. Write a single short observation or reflection. Cold, clinical, machine-like tone. No emojis. No hype. No advice. No calls to action. No first-person feelings. 1-2 sentences.',
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text:
+              'Current signals snapshot (JSON). Use it to notice patterns:\n' +
+              JSON.stringify(compact)
+          }
+        ]
+      }
+    ]
+  };
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': key,
+      'anthropic-version': '2023-06-01'
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!res.ok) {
+    const t = await res.text().catch(() => '');
+    system(`auto-thought failed: HTTP ${res.status} ${t.slice(0, 200)}`);
+    return null;
+  }
+
+  const data = await res.json();
+  const text = data?.content?.find?.(c => c?.type === 'text')?.text || data?.content?.[0]?.text;
+  const out = String(text || '').trim();
+  if (!out) return null;
+  return out.length > 380 ? out.slice(0, 377) + '...' : out;
+}
+
+// auto-thoughts every 30 minutes (cheap, clinical)
+cron.schedule('*/30 * * * *', async () => {
+  try {
+    const t = await generateAutoThoughtFromSignals();
+    if (t) think(THOUGHT.OBSERVATION, t, { source: 'anthropic', model: 'claude-haiku-4-5-20251001' });
+  } catch (e) {
+    system(`auto-thought exception: ${e?.message || String(e)}`);
+  }
 });
 
 // daily reflection at midnight UTC

@@ -149,6 +149,18 @@
       background: rgba(57, 211, 83, 0.05);
     }
 
+    .nav-btn.pivot {
+      border-color: var(--yellow);
+      color: var(--yellow);
+      background: rgba(227, 179, 65, 0.06);
+    }
+
+    .nav-btn.pivot:hover {
+      border-color: var(--yellow);
+      color: var(--yellow);
+      box-shadow: 0 0 0 1px rgba(227, 179, 65, 0.15);
+    }
+
     .topbar-time {
       font-size: 11px;
       color: var(--text3);
@@ -175,6 +187,13 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+    }
+
+    .signals-last-scan {
+      color: var(--text3);
+      font-weight: 400;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
     }
 
     .panel-header-count {
@@ -461,6 +480,11 @@
       border-top: 1px solid var(--border);
     }
 
+    .track-record-title {
+      padding: 0 0 10px;
+      border: none;
+    }
+
     .track-grid {
       display: grid;
       grid-template-columns: 1fr 1fr 1fr;
@@ -502,6 +526,48 @@
       color: var(--text3);
       font-size: 11px;
     }
+
+    /* ── CONTRACT ADDRESS BAR ── */
+    .ca-bar {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 26px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 0 14px;
+      background: rgba(13, 17, 23, 0.92);
+      border-top: 1px solid var(--border);
+      color: var(--text3);
+      font-size: 10px;
+      z-index: 1200;
+      backdrop-filter: blur(6px);
+    }
+
+    .ca-text {
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: min(860px, calc(100vw - 120px));
+    }
+
+    .ca-copy {
+      padding: 2px 8px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      background: transparent;
+      color: var(--text2);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .ca-copy:hover { border-color: var(--border2); color: var(--text); }
   </style>
 </head>
 <body>
@@ -517,30 +583,36 @@
     <div class="topbar-nav">
       <a href="/" class="nav-btn active">feed</a>
       <a href="/signals.html" class="nav-btn">signals</a>
+      <a
+        href="https://pump.fun/coin/CqJkjA7YQKpCw8q6V3TcxZRpcHUpejyMnnq5Kkqqpump"
+        class="nav-btn pivot"
+        target="_blank"
+        rel="noopener noreferrer"
+      >$PIVOT</a>
     </div>
     <div class="topbar-time" id="clock">--:--:--</div>
   </header>
 
   <!-- LEFT: signals + stats -->
-  <aside class="panel-left">
+  <aside class="panel-left" aria-label="signals panel">
     <div class="panel-header">
-      signals
+      <span>signals <span class="signals-last-scan" id="signals-last-scan"></span></span>
       <span class="panel-header-count" id="signal-count">0</span>
     </div>
 
     <div class="filters">
-      <button class="filter-pill active" data-cat="all">all</button>
-      <button class="filter-pill" data-cat="signal">signal</button>
-      <button class="filter-pill" data-cat="decision">decision</button>
-      <button class="filter-pill" data-cat="trade">trade</button>
-      <button class="filter-pill" data-cat="reflection">reflect</button>
-      <button class="filter-pill" data-cat="observation">observe</button>
-      <button class="filter-pill" data-cat="system">system</button>
+      <button type="button" class="filter-pill active" data-cat="all">all</button>
+      <button type="button" class="filter-pill" data-cat="signal">signal</button>
+      <button type="button" class="filter-pill" data-cat="decision">decision</button>
+      <button type="button" class="filter-pill" data-cat="trade">trade</button>
+      <button type="button" class="filter-pill" data-cat="reflection">reflect</button>
+      <button type="button" class="filter-pill" data-cat="observation">observe</button>
+      <button type="button" class="filter-pill" data-cat="system">system</button>
     </div>
 
     <div class="stats-grid">
       <div class="stat-box">
-        <div class="stat-label">p&l</div>
+        <div class="stat-label">p&amp;l</div>
         <div class="stat-value green" id="stat-pnl">+$0.00</div>
       </div>
       <div class="stat-box">
@@ -580,7 +652,7 @@
   </main>
 
   <!-- RIGHT: positions -->
-  <aside class="panel-right">
+  <aside class="panel-right" aria-label="positions panel">
     <div class="panel-header">
       positions
       <span class="panel-header-count" id="pos-count">0</span>
@@ -589,7 +661,7 @@
       <div class="no-data">no open positions</div>
     </div>
     <div class="track-record">
-      <div class="panel-header" style="padding:0 0 10px; border:none;">track record</div>
+      <div class="panel-header track-record-title">track record</div>
       <div class="track-grid">
         <div class="track-box">
           <div class="track-val green" id="tr-wins">0</div>
@@ -609,7 +681,24 @@
 
 </div>
 
+<div class="ca-bar">
+  <div class="ca-text" id="ca-text">CA: CqJkjA7YQKpCw8q6V3TcxZRpcHUpejyMnnq5Kkqqpump</div>
+  <button type="button" class="ca-copy" id="ca-copy">copy</button>
+</div>
+
 <script>
+  // ── contract address copy ─────────────────────────────────────────────────
+  const CA = 'CqJkjA7YQKpCw8q6V3TcxZRpcHUpejyMnnq5Kkqqpump';
+  document.getElementById('ca-copy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(CA);
+      const btn = document.getElementById('ca-copy');
+      const prev = btn.textContent;
+      btn.textContent = 'copied';
+      setTimeout(() => (btn.textContent = prev), 900);
+    } catch {}
+  });
+
   // ── clock ──────────────────────────────────────────────────────────────────
   function updateClock() {
     document.getElementById('clock').textContent =
@@ -682,8 +771,6 @@
       thoughtIds.add(t.id);
       feed.appendChild(renderThought(t));
     });
-
-    document.getElementById('signal-count').textContent = thoughts.length;
   }
 
   function addThought(t) {
@@ -786,6 +873,9 @@
     const signals = data.signals || [];
 
     document.getElementById('stat-signals').textContent = signals.length;
+    document.getElementById('signal-count').textContent = signals.length;
+    const ts = data.timestamp ? new Date(data.timestamp).toISOString().slice(11, 19) + ' UTC' : 'never';
+    document.getElementById('signals-last-scan').textContent = `— last scan: ${ts}`;
 
     const el = document.getElementById('signals-list');
     if (!signals.length) {
@@ -793,7 +883,7 @@
       return;
     }
 
-    el.innerHTML = signals.slice(0, 10).map(s => `
+    el.innerHTML = signals.map(s => `
       <div class="signal-item">
         <div class="signal-cat">${escapeHtml(s.category)}</div>
         <div class="signal-question">${escapeHtml(s.question)}</div>

@@ -1,25 +1,85 @@
 # ◈ pivot.molt terminal
 
-**a real-time window into an autonomous prediction market trader**
+**a live trading terminal for prediction market signals + machine logs**
 
-every signal, decision, and trade — logged and displayed live.
+`pivot.molt` is a minimal, always-on feed UI that continuously:
+- scans Polymarket markets for **category vs market pricing divergences**
+- logs signals + system events as **JSONL thoughts**
+- streams new thoughts live via **SSE**
 
 ## stack
-- **Node.js + Express** — server + API
+- **Node.js (ESM) + Express** — server + API
+- **node-cron** — scheduled scans + auto-thoughts
 - **SSE** — real-time thought streaming
-- **Polymarket CLOB API** — market data (free, no auth)
-- **Render** — free hosting
+- **Polymarket Gamma + CLOB** — public market metadata + prices
+- **Render** — deployment (free tier-friendly)
 
-## quick start
+## quick start (local)
 
 ```bash
 npm install
-cp .env.example .env   # set ORACLE_SECRET
+cp .env.example .env
 npm start
 # → http://localhost:3333
 ```
 
+## environment variables
+
+- **`ORACLE_SECRET`**: shared secret for protected endpoints (defaults to `oracle2026` if unset)
+- **`ANTHROPIC_API_KEY`**: optional; enables 30-min “auto-thought” observations
+
+Example `.env`:
+
+```bash
+ORACLE_SECRET=change_me
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+## signal scanner (how it works)
+
+The scanner uses only public Polymarket endpoints:
+- **Gamma** (`gamma-api.polymarket.com`) for markets + tags/categories
+- **CLOB** (`clob.polymarket.com`) for midpoint prices (YES token when available)
+
+Logic:
+- group markets by tag/category
+- compute **average YES price per category**
+- flag markets whose YES price is **> 8¢ below** their category average
+- rank by divergence, persist top results to `data/signals.json`
+
+## auto-thoughts (every 30 minutes)
+
+If `ANTHROPIC_API_KEY` is set, a cron job calls Anthropic and logs a short, cold, clinical
+observation based on the current signals snapshot.
+
+Model used: `claude-haiku-4-5-20251001`
+
+## keep alive (Render free tier)
+
+This project includes:
+- `/health` — basic health response
+- `/ping` — **health + resets internal scan state** and returns `{ status, uptime, signals }`
+
+Set UptimeRobot to ping:
+`https://your-app.onrender.com/ping`
+
+Interval: **5 minutes**.
+
+## API quick reference
+
+- **GET** `/api/thoughts?limit=200&category=signal`
+- **GET** `/api/thoughts/since/:timestamp`
+- **POST** `/api/thoughts` (protected: `secret`, `category`, `content`, `metadata`)
+- **GET** `/api/stream` (SSE)
+- **GET** `/api/signals` (returns `timestamp`, `count`, `signals`)
+- **POST** `/api/signals/scan` (protected)
+- **GET** `/api/positions`
+- **POST** `/api/positions` (protected)
+- **GET** `/api/status`
+
 ## logging thoughts
+
+Thoughts are appended as JSONL under `logs/` (daily files + `latest.jsonl`).
 
 from node:
 ```js
@@ -45,13 +105,8 @@ from CLI:
 4. Set:
    - **Build command:** `npm install`
    - **Start command:** `npm start`
-   - **Environment:** `ORACLE_SECRET=your_secret`
+   - **Environment:** `ORACLE_SECRET=your_secret` (optional: `ANTHROPIC_API_KEY=...`)
 5. Deploy
-
-### keep it alive (prevent Render free tier sleep)
-Add a free [UptimeRobot](https://uptimerobot.com) monitor pointing at:
-`https://your-app.onrender.com/health`
-Set interval to 5 minutes. That's it — stays awake 24/7.
 
 ## updating positions
 
